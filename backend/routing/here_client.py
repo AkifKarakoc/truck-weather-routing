@@ -15,6 +15,9 @@ import requests
 from django.conf import settings
 
 ROUTES_URL = "https://router.hereapi.com/v8/routes"
+AUTOSUGGEST_URL = "https://autosuggest.search.hereapi.com/v1/autosuggest"
+# Geographic centre of the contiguous US; biases suggestions without excluding any state.
+US_CENTER = "39.83,-98.58"
 REQUEST_TIMEOUT_S = 30
 KG_PER_LB = 0.45359237
 # Ask for the main route plus this many alternatives (3 routes total).
@@ -85,6 +88,35 @@ def fetch_truck_routes(
     if not routes:
         raise NoRouteFound("No truck route found between these locations.")
     return routes
+
+
+@dataclass(frozen=True)
+class Place:
+    label: str
+    position: LatLng
+
+
+def suggest_places(query: str, limit: int = 6) -> list[Place]:
+    """US places matching a partial address, for the search box."""
+    if not settings.HERE_API_KEY:
+        raise HereApiError("HERE_API_KEY is not configured.")
+
+    params = {"q": query, "at": US_CENTER, "in": "countryCode:USA", "limit": limit, "apiKey": settings.HERE_API_KEY}
+    try:
+        response = requests.get(AUTOSUGGEST_URL, params=params, timeout=REQUEST_TIMEOUT_S)
+    except requests.RequestException as exc:
+        raise HereApiError("Could not reach the HERE search service.") from exc
+    if response.status_code != 200:
+        raise HereApiError(f"HERE search failed ({response.status_code}): {_error_title(response)}")
+
+    places = []
+    for item in response.json().get("items", []):
+        # Category/chain suggestions have no position; skip them.
+        position = item.get("position")
+        if position:
+            label = (item.get("address") or {}).get("label") or item["title"]
+            places.append(Place(label=label, position=(position["lat"], position["lng"])))
+    return places
 
 
 def parse_route(route: dict) -> HereRoute:

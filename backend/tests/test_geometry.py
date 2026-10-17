@@ -8,6 +8,8 @@ from routing.geometry import (
     haversine_miles,
     place_checkpoints,
     position_at_mile,
+    simplify,
+    slice_line,
 )
 from routing.here_client import HereRoute, Span
 
@@ -131,3 +133,25 @@ def test_rejects_non_positive_interval():
 
     with pytest.raises(ValueError):
         place_checkpoints(build_profile(route), 0, DEPARTURE)
+
+
+def test_simplify_drops_collinear_points_and_keeps_corners():
+    coords = [(0, 0), (0, 0.1), (0, 0.2), (0.1, 0.2), (0.2, 0.2)]
+
+    assert simplify(coords, tolerance_deg=0.001) == [0, 2, 4]
+
+
+def test_simplify_keeps_short_lines():
+    assert simplify([(0, 0), (1, 1)], 0.1) == [0, 1]
+
+
+def test_slice_line_starts_and_ends_on_mile_marks():
+    route = straight_route(11, [Span(0, 0, 3600)], length_miles=100)
+    profile = build_profile(route)
+    kept = list(range(11))
+
+    line = slice_line(profile, kept, 25, 45)
+
+    assert line[0][1] == pytest.approx(0.25)
+    assert [p[1] for p in line[1:-1]] == pytest.approx([0.3, 0.4])
+    assert line[-1][1] == pytest.approx(0.45)

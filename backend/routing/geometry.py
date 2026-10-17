@@ -149,3 +149,43 @@ def _accumulate(values) -> list[float]:
         total += value
         out.append(total)
     return out
+
+
+def simplify(coords: list[LatLng], tolerance_deg: float) -> list[int]:
+    """Indexes of points kept by Ramer-Douglas-Peucker simplification.
+
+    Route polylines have thousands of points; the map needs far fewer.
+    Distances are planar in degrees, which is fine at this tolerance.
+    """
+    if len(coords) < 3:
+        return list(range(len(coords)))
+
+    keep = {0, len(coords) - 1}
+    stack = [(0, len(coords) - 1)]
+    while stack:
+        first, last = stack.pop()
+        worst_index, worst_distance = -1, tolerance_deg
+        for i in range(first + 1, last):
+            distance = _distance_to_segment(coords[i], coords[first], coords[last])
+            if distance > worst_distance:
+                worst_index, worst_distance = i, distance
+        if worst_index != -1:
+            keep.add(worst_index)
+            stack.extend([(first, worst_index), (worst_index, last)])
+    return sorted(keep)
+
+
+def slice_line(profile: RouteProfile, kept: list[int], start_mi: float, end_mi: float) -> list[LatLng]:
+    """The part of the route between two mile marks, using the kept points."""
+    inner = [profile.coordinates[i] for i in kept if start_mi < profile.cum_miles[i] < end_mi]
+    return [position_at_mile(profile, start_mi), *inner, position_at_mile(profile, end_mi)]
+
+
+def _distance_to_segment(p: LatLng, a: LatLng, b: LatLng) -> float:
+    (py, px), (ay, ax), (by, bx) = p, a, b
+    dx, dy = bx - ax, by - ay
+    length_sq = dx * dx + dy * dy
+    if length_sq == 0:
+        return math.hypot(px - ax, py - ay)
+    t = max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / length_sq))
+    return math.hypot(px - (ax + t * dx), py - (ay + t * dy))

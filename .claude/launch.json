@@ -4,7 +4,7 @@
     {
       "name": "backend",
       "runtimeExecutable": "backend/.venv/Scripts/python.exe",
-      "runtimeArgs": ["backend/manage.py", "runserver", "8000", "--noreload"],
+      "runtimeArgs": ["backend/manage.py", "runserver", "8000"],
       "port": 8000
     },
     {
