@@ -7,12 +7,13 @@ from rest_framework.views import exception_handler
 
 from .here_client import HereApiError, NoRouteFound
 from .trips import TripNotFound
-from .weather_client import WeatherUnavailable
+from .weather_client import WeatherRateLimited, WeatherUnavailable
 
-# Most specific first: NoRouteFound is a HereApiError.
+# Most specific first: subclasses before their base classes.
 SERVICE_ERRORS = (
     (NoRouteFound, status.HTTP_422_UNPROCESSABLE_ENTITY, "no_route", None),
     (HereApiError, status.HTTP_502_BAD_GATEWAY, "routing_unavailable", None),
+    (WeatherRateLimited, status.HTTP_503_SERVICE_UNAVAILABLE, "weather_rate_limited", None),
     (WeatherUnavailable, status.HTTP_503_SERVICE_UNAVAILABLE, "weather_unavailable", None),
     (TripNotFound, status.HTTP_404_NOT_FOUND, "trip_expired", "This trip has expired. Please search again."),
 )

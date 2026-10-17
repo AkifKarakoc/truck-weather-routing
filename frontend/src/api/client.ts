@@ -1,5 +1,5 @@
 import { API_BASE_URL } from '../lib/config'
-import type { Interval, Place, TripPlan, TripRequest } from './types'
+import type { Heatmap, Interval, Place, TripPlan, TripRequest } from './types'
 
 /** Error with the API's `{error: {code, message}}` details attached. */
 export class ApiError extends Error {
@@ -47,4 +47,8 @@ export function createTrip(trip: TripRequest): Promise<TripPlan> {
 
 export function getTrip(tripId: string, interval: Interval): Promise<TripPlan> {
   return request<TripPlan>(`/trips/${tripId}/?interval=${interval}`)
+}
+
+export function getHeatmap(tripId: string): Promise<Heatmap> {
+  return request<Heatmap>(`/trips/${tripId}/heatmap/`)
 }

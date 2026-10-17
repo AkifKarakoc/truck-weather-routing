@@ -9,12 +9,20 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from django.core.cache import cache
 
 from . import here_client, weather_client
-from .geometry import Checkpoint, RouteProfile, build_profile, place_checkpoints, simplify, slice_line
+from .geometry import (
+    Checkpoint,
+    RouteProfile,
+    build_profile,
+    corridor_grid,
+    place_checkpoints,
+    simplify,
+    slice_line,
+)
 from .here_client import HereRoute, LatLng
 from .recommend import Recommendation, RouteRisk, recommend, summarize_route
 from .risk import RiskAssessment, WeatherSample, assess
@@ -26,6 +34,11 @@ TRIP_TTL_S = 60 * 60
 # ~30 m; keeps route lines visually exact with a fraction of the points.
 SIMPLIFY_TOLERANCE_DEG = 0.0003
 ROUTE_LETTERS = "ABC"
+# Heatmap: forecast hours after departure, and the band of grid points around the routes.
+HEATMAP_HOURS = 48
+CORRIDOR_RADIUS_MI = 40
+# 30 mi keeps a long trip within Open-Meteo's free per-minute location limit.
+CORRIDOR_SPACING_MI = 30
 
 
 class TripNotFound(Exception):
@@ -133,6 +146,44 @@ def assess_trip(trip: Trip, interval_mi: int) -> TripPlan:
 
     recommendation = recommend([r.summary for r in assessed_routes])
     return TripPlan(trip=trip, interval_mi=interval_mi, routes=assessed_routes, recommendation=recommendation)
+
+
+@dataclass(frozen=True)
+class Heatmap:
+    """Weather and risk on a grid around the routes, for each hour after departure.
+
+    Per-point series are indexed [point][hour], with hour 0 = departure.
+    """
+
+    hours: list[datetime]
+    points: list[LatLng]
+    risk: list[list[int]]
+    wind_mph: list[list[float]]
+    rain_in_hr: list[list[float]]
+    snow_in_hr: list[list[float]]
+
+
+def build_heatmap(trip: Trip) -> Heatmap:
+    cache_key = f"{_cache_key(trip.id)}:heatmap"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    points = corridor_grid(trip.profiles, CORRIDOR_RADIUS_MI, CORRIDOR_SPACING_MI)
+    hours = [trip.departure + timedelta(hours=h) for h in range(HEATMAP_HOURS + 1)]
+    forecasts = weather_client.fetch_forecasts(points, until=hours[-1])
+
+    heatmap = Heatmap(hours=hours, points=points, risk=[], wind_mph=[], rain_in_hr=[], snow_in_hr=[])
+    for point in points:
+        forecast = forecasts[weather_client.cell_of(point)]
+        samples = [forecast.sample_at(hour) for hour in hours]
+        heatmap.risk.append([assess(s, trip.load_lb).level.value for s in samples])
+        heatmap.wind_mph.append([s.wind_mph for s in samples])
+        heatmap.rain_in_hr.append([s.rain_in_hr for s in samples])
+        heatmap.snow_in_hr.append([s.snow_in_hr for s in samples])
+
+    cache.set(cache_key, heatmap, TRIP_TTL_S)
+    return heatmap
 
 
 def main_roads(route: HereRoute, count: int = 2) -> list[str]:

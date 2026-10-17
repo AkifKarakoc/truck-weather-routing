@@ -7,7 +7,9 @@ from routing.geometry import (
     build_profile,
     haversine_miles,
     place_checkpoints,
+    corridor_grid,
     position_at_mile,
+    sample_route,
     simplify,
     slice_line,
 )
@@ -155,3 +157,38 @@ def test_slice_line_starts_and_ends_on_mile_marks():
     assert line[0][1] == pytest.approx(0.25)
     assert [p[1] for p in line[1:-1]] == pytest.approx([0.3, 0.4])
     assert line[-1][1] == pytest.approx(0.45)
+
+
+def test_sample_route_includes_both_ends():
+    profile = build_profile(straight_route(11, [Span(0, 0, 3600)], length_miles=100))
+
+    points = sample_route(profile, 30)
+
+    assert len(points) == 5
+    assert points[0] == pytest.approx((0, 0))
+    assert points[-1][1] == pytest.approx(1.0)
+
+
+def test_corridor_grid_stays_within_radius_and_covers_the_route():
+    profile = build_profile(straight_route(31, [Span(0, 0, 3600)]))  # ~207 miles along the equator
+
+    grid = corridor_grid([profile], radius_miles=40, spacing_miles=20)
+
+    assert grid
+    route_points = sample_route(profile, 1)
+    for point in grid:
+        assert min(haversine_miles(point, p) for p in route_points) <= 40 + 1e-6
+    # Every route point has a grid point within one grid spacing.
+    for p in route_points[::10]:
+        assert min(haversine_miles(p, g) for g in grid) <= 20
+    # An 80-mile-wide band holds 3-5 rows 20 miles apart, depending on edges.
+    assert 3 <= len({lat for lat, _ in grid}) <= 5
+
+
+def test_corridor_grid_is_stable_for_overlapping_routes():
+    a = build_profile(straight_route(31, [Span(0, 0, 3600)]))
+
+    single = corridor_grid([a], radius_miles=40, spacing_miles=20)
+    doubled = corridor_grid([a, a], radius_miles=40, spacing_miles=20)
+
+    assert single == doubled

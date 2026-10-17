@@ -9,7 +9,7 @@ from routing import here_client, trips, weather_client
 from routing.geometry import METERS_PER_MILE, haversine_miles
 from routing.here_client import HereRoute, NoRouteFound, Place, Span
 from routing.risk import WeatherSample
-from routing.weather_client import WeatherUnavailable
+from routing.weather_client import WeatherRateLimited, WeatherUnavailable
 
 
 def straight_route(lat: float, hours: float) -> HereRoute:
@@ -208,3 +208,45 @@ def test_suggest_results_are_cached(client, monkeypatch):
 
     assert first.json() == {"results": [{"label": "Denver, CO, United States", "lat": 39.74, "lng": -104.99}]}
     assert calls == ["Denv"]
+
+
+def test_heatmap_covers_49_hours_with_risk_for_the_load(client, fake_services):
+    trip_id = client.post("/api/trips/", trip_request(), format="json").json()["trip_id"]
+
+    response = client.get(f"/api/trips/{trip_id}/heatmap/")
+
+    assert response.status_code == 200
+    heatmap = response.json()
+    assert len(heatmap["hours"]) == 49
+    assert len(heatmap["points"]) == len(heatmap["risk"]) == len(heatmap["wind_mph"]) > 0
+    assert all(len(series) == 49 for series in heatmap["risk"])
+    # Windy cells (north of 0.4 lat) are No Travel for a 35,000 lb load; calm cells are Low.
+    by_lat = {round(point[1], 1) >= 0.4: series[0] for point, series in zip(heatmap["points"], heatmap["risk"])}
+    assert by_lat[True] == 4
+    assert by_lat[False] == 0
+
+
+def test_heatmap_is_cached_per_trip(client, fake_services):
+    trip_id = client.post("/api/trips/", trip_request(), format="json").json()["trip_id"]
+    weather_calls = fake_services["weather"]
+
+    client.get(f"/api/trips/{trip_id}/heatmap/")
+    client.get(f"/api/trips/{trip_id}/heatmap/")
+
+    assert fake_services["weather"] == weather_calls + 1
+
+
+def test_heatmap_for_unknown_trip(client):
+    assert client.get("/api/trips/nope/heatmap/").status_code == 404
+
+
+def test_weather_rate_limit_has_its_own_error_code(client, monkeypatch):
+    def limited(points, until):
+        raise WeatherRateLimited("Please try again in a minute.")
+
+    monkeypatch.setattr(weather_client, "fetch_forecasts", limited)
+
+    response = client.post("/api/trips/", trip_request(), format="json")
+
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "weather_rate_limited"

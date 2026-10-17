@@ -10,6 +10,7 @@ from .serializers import (
     SuggestQuerySerializer,
     TripRequestSerializer,
     as_latlng,
+    serialize_heatmap,
     serialize_plan,
 )
 
@@ -61,3 +62,9 @@ def trip_detail(request, trip_id: str):
 
     plan = trips.assess_trip(trips.get_trip(trip_id), query.validated_data["interval"])
     return Response(serialize_plan(plan))
+
+
+@api_view(["GET"])
+def trip_heatmap(request, trip_id: str):
+    """Corridor weather for the 0-48 hour slider; loaded after the routes."""
+    return Response(serialize_heatmap(trips.build_heatmap(trips.get_trip(trip_id))))

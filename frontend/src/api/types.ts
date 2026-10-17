@@ -79,3 +79,15 @@ export interface TripPlan {
   recommendation: Recommendation
   warnings: string[]
 }
+
+export type HeatmapLayerKind = 'risk' | 'wind' | 'rain' | 'snow'
+
+/** Corridor weather; per-point series are indexed [point][hour], hour 0 = departure. */
+export interface Heatmap {
+  hours: string[]
+  points: LngLat[]
+  risk: number[][]
+  wind_mph: number[][]
+  rain_in_hr: number[][]
+  snow_in_hr: number[][]
+}

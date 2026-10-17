@@ -10,9 +10,11 @@ import Map, {
   type MapRef,
 } from 'react-map-gl/maplibre'
 
-import type { LngLat, Route, TripPlan } from '../api/types'
+import type { Heatmap, HeatmapLayerKind, LngLat, Route, TripPlan } from '../api/types'
 import { BASEMAP_STYLE_URL, US_INITIAL_VIEW } from '../lib/config'
+import { heatmapFeatures, heatmapPaint } from '../lib/heatmap'
 import { RISK_COLOR_EXPRESSION } from '../lib/risk'
+import { truckPositionAt } from '../lib/truckPosition'
 import { CheckpointDetails } from './CheckpointDetails'
 import { MapLegend } from './MapLegend'
 
@@ -24,11 +26,16 @@ interface RouteMapProps {
   plan: TripPlan | null
   selectedRouteId: string | null
   onSelectRoute: (routeId: string) => void
+  heatmap: Heatmap | null
+  heatmapLayer: HeatmapLayerKind
+  hour: number
 }
 
-export function RouteMap({ plan, selectedRouteId, onSelectRoute }: RouteMapProps) {
+export function RouteMap({ plan, selectedRouteId, onSelectRoute, heatmap, heatmapLayer, hour }: RouteMapProps) {
   const mapRef = useRef<MapRef>(null)
   const [loaded, setLoaded] = useState(false)
+  // Basemap label layer to slide the heatmap under, so place names stay readable.
+  const [firstLabelLayer, setFirstLabelLayer] = useState<string | undefined>()
   const [hovering, setHovering] = useState(false)
   // Tagged with the data it belongs to, so it closes when that data changes.
   const [openCheckpoint, setOpenCheckpoint] = useState<{ key: string; index: number } | null>(null)
@@ -39,6 +46,9 @@ export function RouteMap({ plan, selectedRouteId, onSelectRoute }: RouteMapProps
   const otherLines = useMemo(() => routeLines(others), [others])
   const selectedSegments = useMemo(() => riskSegments(selected), [selected])
   const checkpoints = useMemo(() => checkpointPoints(selected), [selected])
+  const heatmapData = useMemo(() => (heatmap ? heatmapFeatures(heatmap) : null), [heatmap])
+  const heatmapStyle = useMemo(() => heatmapPaint(heatmapLayer, hour), [heatmapLayer, hour])
+  const truck = selected && heatmap ? truckPositionAt(selected, new Date(heatmap.hours[hour])) : null
 
   const dataKey = plan ? `${plan.trip_id}:${plan.interval_mi}:${selectedRouteId}` : ''
 
@@ -76,12 +86,21 @@ export function RouteMap({ plan, selectedRouteId, onSelectRoute }: RouteMapProps
       style={{ width: '100%', height: '100%' }}
       interactiveLayerIds={INTERACTIVE_LAYERS}
       cursor={hovering ? 'pointer' : 'grab'}
-      onLoad={() => setLoaded(true)}
+      onLoad={(event) => {
+        setFirstLabelLayer(event.target.getStyle().layers.find((layer) => layer.type === 'symbol')?.id)
+        setLoaded(true)
+      }}
       onClick={handleClick}
       onMouseEnter={() => setHovering(true)}
       onMouseLeave={() => setHovering(false)}
     >
       <NavigationControl position="top-right" />
+
+      {heatmapData && (
+        <Source id="heatmap" type="geojson" data={heatmapData}>
+          <Layer id="heatmap" type="circle" beforeId={firstLabelLayer} paint={heatmapStyle} />
+        </Source>
+      )}
 
       <Source id="other-routes" type="geojson" data={otherLines}>
         <Layer
@@ -124,6 +143,7 @@ export function RouteMap({ plan, selectedRouteId, onSelectRoute }: RouteMapProps
 
       {start && <EndpointMarker position={start} label="A" />}
       {end && <EndpointMarker position={end} label="B" />}
+      {truck && <TruckMarker position={truck.position} arrived={truck.status === 'arrived'} />}
 
       {popupCheckpoint && selected && (
         <Popup
@@ -140,7 +160,7 @@ export function RouteMap({ plan, selectedRouteId, onSelectRoute }: RouteMapProps
         </Popup>
       )}
 
-      {plan && <MapLegend />}
+      {plan && <MapLegend showHeatmap={Boolean(heatmap)} />}
     </Map>
   )
 }
@@ -150,6 +170,21 @@ function EndpointMarker({ position, label }: { position: LngLat; label: string }
     <Marker longitude={position[0]} latitude={position[1]} anchor="center">
       <div className="flex size-7 items-center justify-center rounded-full border-2 border-white bg-slate-900 text-xs font-bold text-white shadow-md">
         {label}
+      </div>
+    </Marker>
+  )
+}
+
+function TruckMarker({ position, arrived }: { position: LngLat; arrived: boolean }) {
+  return (
+    <Marker longitude={position[0]} latitude={position[1]} anchor="center" style={{ zIndex: 2 }}>
+      <div
+        title={arrived ? 'Truck has arrived at this hour' : 'Truck position at the selected hour'}
+        className="flex size-8 items-center justify-center rounded-full border-2 border-white bg-sky-700 text-white shadow-lg"
+      >
+        <svg viewBox="0 0 24 24" className="size-4.5" fill="currentColor" aria-hidden="true">
+          <path d="M2 6a1 1 0 0 1 1-1h11a1 1 0 0 1 1 1v2h3.6a1 1 0 0 1 .8.4l2.4 3.2a1 1 0 0 1 .2.6V16a1 1 0 0 1-1 1h-1.2a2.5 2.5 0 0 1-4.6 0H9.8a2.5 2.5 0 0 1-4.6 0H3a1 1 0 0 1-1-1V6Zm13 4v3h4.8l-1.7-2.3-.5-.7H15ZM7.5 17.5a1 1 0 1 0 0-2 1 1 0 0 0 0 2Zm9 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" />
+        </svg>
       </div>
     </Marker>
   )

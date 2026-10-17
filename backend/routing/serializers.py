@@ -14,7 +14,7 @@ from rest_framework import serializers
 from .geometry import haversine_miles
 from .here_client import LatLng
 from .risk import RiskLevel
-from .trips import AssessedCheckpoint, AssessedRoute, TripPlan
+from .trips import AssessedCheckpoint, AssessedRoute, Heatmap, TripPlan
 
 MAX_LOAD_LB = 50_000
 MAX_DAYS_AHEAD = 7
@@ -87,6 +87,18 @@ def serialize_plan(plan: TripPlan) -> dict:
             "all_routes_blocked": recommendation.all_routes_blocked,
         },
         "warnings": warnings,
+    }
+
+
+def serialize_heatmap(heatmap: Heatmap) -> dict:
+    """Compact column form: one array per point, one value per hour."""
+    return {
+        "hours": [_iso(hour) for hour in heatmap.hours],
+        "points": [_lnglat(point) for point in heatmap.points],
+        "risk": heatmap.risk,
+        "wind_mph": [[round(v) for v in series] for series in heatmap.wind_mph],
+        "rain_in_hr": [[round(v, 2) for v in series] for series in heatmap.rain_in_hr],
+        "snow_in_hr": [[round(v, 2) for v in series] for series in heatmap.snow_in_hr],
     }
 
 

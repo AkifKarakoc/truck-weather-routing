@@ -18,6 +18,7 @@ from .here_client import HereRoute, LatLng, Span
 
 METERS_PER_MILE = 1609.344
 EARTH_RADIUS_MI = 3958.7613
+MILES_PER_DEGREE_LAT = 69.05
 
 
 @dataclass(frozen=True)
@@ -189,3 +190,60 @@ def _distance_to_segment(p: LatLng, a: LatLng, b: LatLng) -> float:
         return math.hypot(px - ax, py - ay)
     t = max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / length_sq))
     return math.hypot(px - (ax + t * dx), py - (ay + t * dy))
+
+
+def sample_route(profile: RouteProfile, every_miles: float) -> list[LatLng]:
+    """Points every `every_miles` along a route, ends included."""
+    count = max(1, math.ceil(profile.total_miles / every_miles))
+    return [position_at_mile(profile, profile.total_miles * i / count) for i in range(count + 1)]
+
+
+def corridor_grid(routes: list[RouteProfile], radius_miles: float, spacing_miles: float) -> list[LatLng]:
+    """Regular grid points lying within `radius_miles` of any route.
+
+    The grid is aligned to fixed multiples of the spacing, so the same area
+    always produces the same points (and therefore the same cached weather).
+    """
+    lat_step = spacing_miles / MILES_PER_DEGREE_LAT
+    samples = [p for profile in routes for p in sample_route(profile, spacing_miles / 2)]
+
+    # Bucket route samples by whole degree so each grid point only checks nearby samples.
+    buckets: dict[tuple[int, int], list[LatLng]] = {}
+    for lat, lng in samples:
+        buckets.setdefault((math.floor(lat), math.floor(lng)), []).append((lat, lng))
+    reach_deg = math.ceil(radius_miles / MILES_PER_DEGREE_LAT / math.cos(math.radians(_max_abs_lat(samples)))) + 1
+
+    margin_lat = radius_miles / MILES_PER_DEGREE_LAT
+    min_lat = min(lat for lat, _ in samples) - margin_lat
+    max_lat = max(lat for lat, _ in samples) + margin_lat
+
+    points: list[LatLng] = []
+    for row in range(math.floor(min_lat / lat_step), math.ceil(max_lat / lat_step) + 1):
+        lat = row * lat_step
+        # Keep east-west spacing roughly constant in miles at this latitude.
+        lng_step = lat_step / max(math.cos(math.radians(lat)), 0.2)
+        margin_lng = radius_miles / MILES_PER_DEGREE_LAT / max(math.cos(math.radians(lat)), 0.2)
+        row_samples = [s for s in samples if abs(s[0] - lat) <= margin_lat]
+        if not row_samples:
+            continue
+        min_lng = min(lng for _, lng in row_samples) - margin_lng
+        max_lng = max(lng for _, lng in row_samples) + margin_lng
+        for col in range(math.floor(min_lng / lng_step), math.ceil(max_lng / lng_step) + 1):
+            point = (round(lat, 4), round(col * lng_step, 4))
+            if _near_any(point, buckets, reach_deg, radius_miles):
+                points.append(point)
+    return points
+
+
+def _near_any(point: LatLng, buckets: dict[tuple[int, int], list[LatLng]], reach: int, radius: float) -> bool:
+    base_lat, base_lng = math.floor(point[0]), math.floor(point[1])
+    for d_lat in range(-reach, reach + 1):
+        for d_lng in range(-reach, reach + 1):
+            for sample in buckets.get((base_lat + d_lat, base_lng + d_lng), ()):
+                if haversine_miles(point, sample) <= radius:
+                    return True
+    return False
+
+
+def _max_abs_lat(points: list[LatLng]) -> float:
+    return min(max(abs(lat) for lat, _ in points), 80.0)

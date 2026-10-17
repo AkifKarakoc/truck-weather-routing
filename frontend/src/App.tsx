@@ -1,6 +1,9 @@
-import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { useCallback, useState } from 'react'
 
-import type { TripPlan } from './api/types'
+import { getHeatmap } from './api/client'
+import type { HeatmapLayerKind, TripPlan } from './api/types'
+import { HeatmapControls } from './components/HeatmapControls'
 import { IntervalSelector } from './components/IntervalSelector'
 import { RouteList } from './components/RouteList'
 import { RouteMap } from './components/RouteMap'
@@ -17,6 +20,20 @@ export default function App() {
   const selectedRouteId =
     plan && selection?.tripId === plan.trip_id ? selection.routeId : (plan?.recommendation.route_id ?? null)
   const selectRoute = (routeId: string) => plan && setSelection({ tripId: plan.trip_id, routeId })
+
+  // Loaded after the routes so they appear first; the slider never refetches.
+  const tripId = plan?.trip_id
+  const heatmap = useQuery({
+    queryKey: ['heatmap', tripId],
+    queryFn: () => getHeatmap(tripId!),
+    enabled: Boolean(tripId),
+    staleTime: Infinity,
+    retry: false,
+  })
+  const [heatmapLayer, setHeatmapLayer] = useState<HeatmapLayerKind>('risk')
+  const [hourState, setHourState] = useState<{ tripId: string; hour: number } | null>(null)
+  const hour = hourState && hourState.tripId === tripId ? hourState.hour : 0
+  const setHour = useCallback((next: number) => tripId && setHourState({ tripId, hour: next }), [tripId])
 
   return (
     <div className="flex h-full flex-col md:flex-row">
@@ -61,7 +78,25 @@ export default function App() {
       </aside>
 
       <main className="relative h-[60vh] min-h-0 flex-1 md:h-full">
-        <RouteMap plan={plan} selectedRouteId={selectedRouteId} onSelectRoute={selectRoute} />
+        <RouteMap
+          plan={plan}
+          selectedRouteId={selectedRouteId}
+          onSelectRoute={selectRoute}
+          heatmap={heatmap.data ?? null}
+          heatmapLayer={heatmapLayer}
+          hour={hour}
+        />
+        {plan && (
+          <HeatmapControls
+            hours={heatmap.data?.hours ?? null}
+            hour={hour}
+            onHourChange={setHour}
+            layer={heatmapLayer}
+            onLayerChange={setHeatmapLayer}
+            status={heatmap.isError ? 'error' : heatmap.data ? 'ready' : 'loading'}
+            errorMessage={heatmap.error?.message}
+          />
+        )}
       </main>
     </div>
   )

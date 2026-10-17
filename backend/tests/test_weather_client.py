@@ -8,6 +8,7 @@ from routing import weather_client
 from routing.weather_client import (
     FORECAST_URL,
     HourlyForecast,
+    WeatherRateLimited,
     WeatherUnavailable,
     cell_center,
     cell_of,
@@ -149,3 +150,13 @@ def test_incomplete_batch_response_is_rejected():
 
     with pytest.raises(WeatherUnavailable):
         fetch_forecasts([(39.74, -104.99), (45.0, -100.0)], until=T0 + timedelta(hours=5))
+
+
+@responses.activate
+def test_rate_limit_is_reported_without_retrying():
+    responses.get(FORECAST_URL, status=429, json={"reason": "Minutely API request limit exceeded."})
+
+    with pytest.raises(WeatherRateLimited, match="try again in a minute"):
+        fetch_forecasts([(39.74, -104.99)], until=T0 + timedelta(hours=5))
+
+    assert len(responses.calls) == 1

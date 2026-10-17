@@ -36,6 +36,10 @@ class WeatherUnavailable(Exception):
     """Forecast data could not be obtained for every requested point."""
 
 
+class WeatherRateLimited(WeatherUnavailable):
+    """Open-Meteo's free per-minute location limit was reached."""
+
+
 @dataclass(frozen=True)
 class HourlyForecast:
     """Hourly series for one grid cell. `times` are unix seconds (UTC, on the hour)."""
@@ -137,7 +141,12 @@ def _get_with_retry(params: dict):
             response = requests.get(FORECAST_URL, params=params, timeout=REQUEST_TIMEOUT_S)
             if response.status_code == 200:
                 return response.json()
-            retryable = response.status_code == 429 or response.status_code >= 500
+            if response.status_code == 429:
+                # The limit is per minute: retrying within seconds cannot help.
+                raise WeatherRateLimited(
+                    "The free weather service's per-minute limit was reached. Please try again in a minute."
+                )
+            retryable = response.status_code >= 500
             if not retryable:
                 raise WeatherUnavailable(f"Weather service rejected the request ({response.status_code}).")
         except (requests.RequestException, ValueError):
