@@ -71,8 +71,6 @@ def serialize_plan(plan: TripPlan) -> dict:
     warnings = []
     if len(plan.routes) < 3:
         warnings.append(f"Only {len(plan.routes)} reasonable route(s) were found for this trip.")
-    if recommendation.all_routes_blocked:
-        warnings.append("Every route crosses at least one No Travel stretch. Travel is not advised.")
 
     return {
         "trip_id": trip.id,
