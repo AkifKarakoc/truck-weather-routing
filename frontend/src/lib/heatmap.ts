@@ -4,11 +4,28 @@ import type { CircleLayerSpecification, ExpressionSpecification } from 'maplibre
 import type { Heatmap, HeatmapLayerKind } from '../api/types'
 import { RISK_COLORS } from './risk'
 
-export const HEATMAP_LAYERS: { kind: HeatmapLayerKind; label: string }[] = [
-  { kind: 'risk', label: 'Risk' },
-  { kind: 'wind', label: 'Wind' },
-  { kind: 'rain', label: 'Rain' },
-  { kind: 'snow', label: 'Snow' },
+export const HEATMAP_LAYERS: { kind: HeatmapLayerKind; label: string; description: string }[] = [
+  {
+    kind: 'risk',
+    label: 'Risk',
+    description: 'overall risk at the slider hour (worst of wind, rain, snow, with load rules).',
+  },
+  {
+    kind: 'wind',
+    label: 'Wind',
+    description: 'sustained wind at the slider hour, mph: Moderate 25+, High 35+, Severe 45+, No Travel 55+.',
+  },
+  {
+    kind: 'rain',
+    label: 'Rain',
+    description:
+      'rain incl. showers at the slider hour, in/hr: Moderate 0.10+, High 0.25+, Severe 0.50+, No Travel >1.00.',
+  },
+  {
+    kind: 'snow',
+    label: 'Snow',
+    description: 'snowfall at the slider hour, in/hr: Moderate 0.5+, High 1.0+, Severe 2.0+, No Travel >3.0.',
+  },
 ]
 
 // Per-hour property names: r3 = risk at departure + 3h, w3 = wind, p3 = rain, s3 = snow.
@@ -72,7 +89,15 @@ export function heatmapPaint(kind: HeatmapLayerKind, hour: number): CircleLayerS
     // Grid points are ~30 mi (48 km) apart. Radii are set in ground distance
     // (~60 km, doubling per zoom level) so the soft circles overlap into a
     // continuous field at every zoom.
-    'circle-radius': ['interpolate', ['exponential', 2], ['zoom'], 0, RADIUS_PX_AT_ZOOM_0, 22, RADIUS_PX_AT_ZOOM_0 * 2 ** 22],
+    'circle-radius': [
+      'interpolate',
+      ['exponential', 2],
+      ['zoom'],
+      0,
+      RADIUS_PX_AT_ZOOM_0,
+      22,
+      RADIUS_PX_AT_ZOOM_0 * 2 ** 22,
+    ],
     'circle-pitch-alignment': 'map',
   }
 }

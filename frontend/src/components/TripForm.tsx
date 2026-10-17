@@ -12,19 +12,25 @@ const DAY_MS = 24 * 60 * 60 * 1000
 interface TripFormProps {
   onSubmit: (request: TripRequest) => void
   submitting: boolean
+  // Owned by the app: changing it also re-assesses the trip on screen.
+  interval: Interval
+  onIntervalChange: (interval: Interval) => void
+  intervalBusy: boolean
 }
 
-export function TripForm({ onSubmit, submitting }: TripFormProps) {
+export function TripForm({ onSubmit, submitting, interval, onIntervalChange, intervalBusy }: TripFormProps) {
   const [origin, setOrigin] = useState<Place | null>(null)
   const [destination, setDestination] = useState<Place | null>(null)
   const [departure, setDeparture] = useState(() => toLocalInputValue(new Date()))
   const [load, setLoad] = useState('35000')
-  const [interval, setCheckpointInterval] = useState<Interval>(25)
   const [error, setError] = useState<string | null>(null)
   // Bounds for the date picker; the server re-validates on submit.
   const [pickerRange] = useState(() => {
     const opened = Date.now()
-    return { min: toLocalInputValue(new Date(opened)), max: toLocalInputValue(new Date(opened + MAX_DAYS_AHEAD * DAY_MS)) }
+    return {
+      min: toLocalInputValue(new Date(opened)),
+      max: toLocalInputValue(new Date(opened + MAX_DAYS_AHEAD * DAY_MS)),
+    }
   })
 
   const loadLb = Number(load)
@@ -101,7 +107,7 @@ export function TripForm({ onSubmit, submitting }: TripFormProps) {
 
       <div>
         <span className="mb-1 block text-xs font-medium text-slate-600">Weather checkpoint every</span>
-        <IntervalSelector value={interval} onChange={setCheckpointInterval} disabled={submitting} />
+        <IntervalSelector value={interval} onChange={onIntervalChange} disabled={submitting || intervalBusy} />
       </div>
 
       {error && (

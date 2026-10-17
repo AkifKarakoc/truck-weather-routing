@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 
 import type { Route } from '../api/types'
 import { formatDuration, formatMiles, formatTime } from '../lib/format'
+import { isDesktopLayout } from '../lib/media'
 import { RiskBar } from './RiskBar'
 
 interface RouteCardProps {
@@ -16,9 +17,9 @@ export function RouteCard({ route, selected, recommended, reason, onSelect }: Ro
   const distance = formatMiles(route.distance_mi)
   const ref = useRef<HTMLButtonElement>(null)
 
-  // A route picked on the map should be visible in the list too.
+  // On desktop, a route picked on the map should be visible in the sidebar too.
   useEffect(() => {
-    if (selected) ref.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+    if (selected && isDesktopLayout()) ref.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
   }, [selected])
 
   return (
@@ -28,7 +29,9 @@ export function RouteCard({ route, selected, recommended, reason, onSelect }: Ro
       onClick={onSelect}
       aria-pressed={selected}
       className={`w-full rounded-lg border bg-white p-3 text-left transition-shadow ${
-        selected ? 'border-sky-600 shadow-md ring-1 ring-sky-600' : 'border-slate-200 hover:border-slate-300 hover:shadow-sm'
+        selected
+          ? 'border-sky-600 shadow-md ring-1 ring-sky-600'
+          : 'border-slate-200 hover:border-slate-300 hover:shadow-sm'
       }`}
     >
       <div className="flex items-start justify-between gap-2">
@@ -66,7 +69,9 @@ export function RouteCard({ route, selected, recommended, reason, onSelect }: Ro
         </div>
       </dl>
 
-      {recommended && reason && <p className="mt-2 rounded bg-emerald-50 px-2 py-1.5 text-xs text-emerald-900">{reason}</p>}
+      {recommended && reason && (
+        <p className="mt-2 rounded bg-emerald-50 px-2 py-1.5 text-xs text-emerald-900">{reason}</p>
+      )}
     </button>
   )
 }

@@ -1,18 +1,25 @@
 import { useQuery } from '@tanstack/react-query'
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 import { getHeatmap } from './api/client'
-import type { HeatmapLayerKind, TripPlan } from './api/types'
+import type { HeatmapLayerKind, Interval, TripPlan } from './api/types'
 import { HeatmapControls } from './components/HeatmapControls'
-import { IntervalSelector } from './components/IntervalSelector'
 import { RouteList } from './components/RouteList'
 import { RouteMap } from './components/RouteMap'
 import { TripForm } from './components/TripForm'
 import { formatTime, formatWeight } from './lib/format'
+import { isDesktopLayout } from './lib/media'
 import { useTripPlanner } from './lib/useTripPlanner'
 
 export default function App() {
-  const { plan, planTrip, changeInterval, isPlanning, isUpdating, error } = useTripPlanner()
+  const { plan, pendingInterval, planTrip, changeInterval, isPlanning, isUpdating, error } = useTripPlanner()
+  // One checkpoint-interval control: it applies to the trip on screen and to the next search.
+  const [draftInterval, setDraftInterval] = useState<Interval>(25)
+  const interval = pendingInterval ?? plan?.interval_mi ?? draftInterval
+  const selectInterval = (next: Interval) => {
+    setDraftInterval(next)
+    changeInterval(next)
+  }
   const [selection, setSelection] = useState<{ tripId: string; routeId: string } | null>(null)
 
   // Default to the recommended route for each new trip; keep the user's
@@ -20,9 +27,15 @@ export default function App() {
   const selectedRouteId =
     plan && selection?.tripId === plan.trip_id ? selection.routeId : (plan?.recommendation.route_id ?? null)
   const selectRoute = (routeId: string) => plan && setSelection({ tripId: plan.trip_id, routeId })
+  const selectedRoute = plan?.routes.find((route) => route.id === selectedRouteId) ?? null
+  const tripId = plan?.trip_id
+
+  // On phones the form sits below the map; bring the map into view for each new trip.
+  useEffect(() => {
+    if (tripId && !isDesktopLayout()) window.scrollTo({ top: 0, behavior: 'smooth' })
+  }, [tripId])
 
   // Loaded after the routes so they appear first; the slider never refetches.
-  const tripId = plan?.trip_id
   const heatmap = useQuery({
     queryKey: ['heatmap', tripId],
     queryFn: () => getHeatmap(tripId!),
@@ -36,15 +49,22 @@ export default function App() {
   const setHour = useCallback((next: number) => tripId && setHourState({ tripId, hour: next }), [tripId])
 
   return (
-    <div className="flex h-full flex-col md:flex-row">
-      <aside className="flex w-full shrink-0 flex-col overflow-y-auto border-slate-200 bg-slate-50 md:w-[420px] md:border-r">
+    // Phones: map on top, form and results scroll below. Desktop: sidebar + full-height map.
+    <div className="flex min-h-full flex-col md:h-full md:flex-row">
+      <aside className="flex w-full shrink-0 flex-col border-slate-200 bg-slate-50 md:w-[420px] md:overflow-y-auto md:border-r">
         <header className="border-b border-slate-200 bg-white px-5 py-4">
           <h1 className="text-lg font-semibold">Truck Weather Routing</h1>
           <p className="text-xs text-slate-500">Compare truck routes by forecast weather at your ETA.</p>
         </header>
 
         <section className="border-b border-slate-200 bg-white px-5 py-4">
-          <TripForm onSubmit={planTrip} submitting={isPlanning} />
+          <TripForm
+            onSubmit={planTrip}
+            submitting={isPlanning}
+            interval={interval}
+            onIntervalChange={selectInterval}
+            intervalBusy={isUpdating}
+          />
         </section>
 
         <section className="flex flex-col gap-3 px-5 py-4" aria-live="polite">
@@ -56,13 +76,7 @@ export default function App() {
           {isPlanning && <ResultsSkeleton />}
           {plan && selectedRouteId && (
             <>
-              <PlanHeader plan={plan} />
-              <div className="flex items-center gap-2">
-                <span className="shrink-0 text-xs text-slate-500">Checkpoints every</span>
-                <div className="flex-1">
-                  <IntervalSelector value={plan.interval_mi} onChange={changeInterval} disabled={isUpdating} />
-                </div>
-              </div>
+              <PlanHeader plan={plan} updating={isUpdating} />
               <div className={isUpdating ? 'pointer-events-none opacity-50 transition-opacity' : 'transition-opacity'}>
                 <RouteList plan={plan} selectedRouteId={selectedRouteId} onSelect={selectRoute} />
               </div>
@@ -77,7 +91,7 @@ export default function App() {
         </section>
       </aside>
 
-      <main className="relative h-[60vh] min-h-0 flex-1 md:h-full">
+      <main className="relative order-first h-[70svh] shrink-0 md:order-none md:h-full md:min-h-0 md:flex-1 md:shrink">
         <RouteMap
           plan={plan}
           selectedRouteId={selectedRouteId}
@@ -89,6 +103,7 @@ export default function App() {
         {plan && (
           <HeatmapControls
             hours={heatmap.data?.hours ?? null}
+            arrivalHour={selectedRoute ? hoursBetween(plan.departure_time, selectedRoute.arrival_time) : null}
             hour={hour}
             onHourChange={setHour}
             layer={heatmapLayer}
@@ -102,12 +117,18 @@ export default function App() {
   )
 }
 
-function PlanHeader({ plan }: { plan: TripPlan }) {
+function hoursBetween(startIso: string, endIso: string): number {
+  return (Date.parse(endIso) - Date.parse(startIso)) / 3_600_000
+}
+
+function PlanHeader({ plan, updating }: { plan: TripPlan; updating: boolean }) {
   return (
     <div className="text-xs text-slate-500">
       <p>
         <span className="font-semibold text-slate-700">{plan.routes.length} routes</span> · departing{' '}
-        {formatTime(plan.departure_time)} · {formatWeight(plan.load_lb).primary} load
+        {formatTime(plan.departure_time)} · {formatWeight(plan.load_lb).primary} load · checkpoints every{' '}
+        {plan.interval_mi} mi
+        {updating && <span className="ml-1 text-sky-700">· updating…</span>}
       </p>
     </div>
   )

@@ -45,7 +45,8 @@ export function CheckpointDetails({ checkpoint, isLast }: { checkpoint: Checkpoi
         </span>
       </div>
       <p className="mt-0.5 text-slate-500">
-        ETA {formatTime(checkpoint.eta)} · {formatMiles(checkpoint.mile).primary} · {describeWeather(weather.weather_code)}
+        ETA {formatTime(checkpoint.eta)} · {formatMiles(checkpoint.mile).primary} ·{' '}
+        {describeWeather(weather.weather_code)}
       </p>
 
       <table className="mt-2 w-full">
@@ -68,7 +69,9 @@ export function CheckpointDetails({ checkpoint, isLast }: { checkpoint: Checkpoi
         </tbody>
       </table>
 
-      {risk.load_rule && <p className="mt-2 rounded bg-amber-50 px-2 py-1 text-amber-900">Load rule: {risk.load_rule}</p>}
+      {risk.load_rule && (
+        <p className="mt-2 rounded bg-amber-50 px-2 py-1 text-amber-900">Load rule: {risk.load_rule}</p>
+      )}
       {risk.governing && !risk.load_rule && (
         <p className="mt-2 text-slate-500">Risk set by {CONDITION_LABELS[risk.governing].toLowerCase()}.</p>
       )}

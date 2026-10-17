@@ -10,7 +10,11 @@ interface IntervalSelectorProps {
 
 export function IntervalSelector({ value, onChange, disabled }: IntervalSelectorProps) {
   return (
-    <div role="radiogroup" aria-label="Weather checkpoint interval" className="flex rounded-md border border-slate-300 p-0.5">
+    <div
+      role="radiogroup"
+      aria-label="Weather checkpoint interval"
+      className="flex rounded-md border border-slate-300 p-0.5"
+    >
       {INTERVALS.map((interval) => (
         <button
           key={interval}

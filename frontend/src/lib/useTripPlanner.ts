@@ -44,8 +44,13 @@ export function useTripPlanner() {
     mutation.mutate({ request: { ...request, interval_mi: interval }, tripId: plan.trip_id })
   }
 
+  // The interval being applied right now, so the selector reflects the click immediately.
+  const pendingInterval =
+    mutation.isPending && mutation.variables?.tripId ? mutation.variables.request.interval_mi : null
+
   return {
     plan,
+    pendingInterval,
     planTrip,
     changeInterval,
     isPlanning: mutation.isPending && !mutation.variables?.tripId,

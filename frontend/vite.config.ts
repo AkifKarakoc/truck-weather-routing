@@ -9,6 +9,10 @@ export default defineConfig({
     // pre-bundling moves the module away from the worker file and breaks it.
     exclude: ['maplibre-gl'],
   },
+  build: {
+    // MapLibre is a single ~1 MB chunk (~290 kB gzipped) on its own; that is expected.
+    chunkSizeWarningLimit: 1200,
+  },
   server: {
     // In development the Django API runs separately; proxy it so the
     // browser talks to a single origin.

@@ -16,11 +16,12 @@ import { heatmapFeatures, heatmapPaint } from '../lib/heatmap'
 import { RISK_COLOR_EXPRESSION } from '../lib/risk'
 import { truckPositionAt } from '../lib/truckPosition'
 import { CheckpointDetails } from './CheckpointDetails'
-import { MapLegend } from './MapLegend'
 
 const OTHER_ROUTES_HIT_LAYER = 'other-routes-hit'
 const CHECKPOINTS_LAYER = 'checkpoints'
 const INTERACTIVE_LAYERS = [OTHER_ROUTES_HIT_LAYER, CHECKPOINTS_LAYER]
+// Bottom padding keeps routes clear of the map panel (legend, slider).
+const FIT_PADDING = { top: 50, right: 50, bottom: 250, left: 50 }
 
 interface RouteMapProps {
   plan: TripPlan | null
@@ -41,7 +42,10 @@ export function RouteMap({ plan, selectedRouteId, onSelectRoute, heatmap, heatma
   const [openCheckpoint, setOpenCheckpoint] = useState<{ key: string; index: number } | null>(null)
 
   const selected = plan?.routes.find((route) => route.id === selectedRouteId) ?? null
-  const others = useMemo(() => plan?.routes.filter((route) => route.id !== selectedRouteId) ?? [], [plan, selectedRouteId])
+  const others = useMemo(
+    () => plan?.routes.filter((route) => route.id !== selectedRouteId) ?? [],
+    [plan, selectedRouteId],
+  )
 
   const otherLines = useMemo(() => routeLines(others), [others])
   const selectedSegments = useMemo(() => riskSegments(selected), [selected])
@@ -60,7 +64,8 @@ export function RouteMap({ plan, selectedRouteId, onSelectRoute, heatmap, heatma
     return JSON.stringify({ trip: plan.trip_id, bounds })
   }, [plan])
   useEffect(() => {
-    if (loaded && frameKey) mapRef.current?.fitBounds(JSON.parse(frameKey).bounds, { padding: 64, duration: 900 })
+    if (loaded && frameKey)
+      mapRef.current?.fitBounds(JSON.parse(frameKey).bounds, { padding: FIT_PADDING, duration: 900 })
   }, [loaded, frameKey])
 
   const handleClick = (event: MapLayerMouseEvent) => {
@@ -110,7 +115,11 @@ export function RouteMap({ plan, selectedRouteId, onSelectRoute, heatmap, heatma
           paint={{ 'line-color': '#64748b', 'line-width': 4, 'line-opacity': 0.55 }}
         />
         {/* Wide invisible line so the thin alternatives are easy to click. */}
-        <Layer id={OTHER_ROUTES_HIT_LAYER} type="line" paint={{ 'line-color': '#000', 'line-width': 18, 'line-opacity': 0.01 }} />
+        <Layer
+          id={OTHER_ROUTES_HIT_LAYER}
+          type="line"
+          paint={{ 'line-color': '#000', 'line-width': 18, 'line-opacity': 0.01 }}
+        />
       </Source>
 
       <Source id="selected-route" type="geojson" data={selectedSegments}>
@@ -159,8 +168,6 @@ export function RouteMap({ plan, selectedRouteId, onSelectRoute, heatmap, heatma
           />
         </Popup>
       )}
-
-      {plan && <MapLegend showHeatmap={Boolean(heatmap)} />}
     </Map>
   )
 }

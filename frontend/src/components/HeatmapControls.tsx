@@ -3,11 +3,14 @@ import { useEffect, useState } from 'react'
 import type { HeatmapLayerKind } from '../api/types'
 import { formatTime } from '../lib/format'
 import { HEATMAP_LAYERS } from '../lib/heatmap'
+import { RISK_COLORS, RISK_LABELS, RISK_LEVELS } from '../lib/risk'
 
 const PLAY_STEP_MS = 450
 
 interface HeatmapControlsProps {
   hours: string[] | null
+  // Hours from departure until the selected route arrives (may exceed 48).
+  arrivalHour: number | null
   hour: number
   onHourChange: (hour: number) => void
   layer: HeatmapLayerKind
@@ -18,6 +21,7 @@ interface HeatmapControlsProps {
 
 export function HeatmapControls({
   hours,
+  arrivalHour,
   hour,
   onHourChange,
   layer,
@@ -25,25 +29,33 @@ export function HeatmapControls({
   status,
   errorMessage,
 }: HeatmapControlsProps) {
-  const [playing, setPlaying] = useState(false)
+  // Where playback stops: the arrival hour if it is still ahead, else the end.
+  const [playUntil, setPlayUntil] = useState<number | null>(null)
+  const playing = playUntil !== null
   const lastHour = hours ? hours.length - 1 : 48
+  const arrivalStep = arrivalHour !== null && arrivalHour < lastHour ? Math.ceil(arrivalHour) : null
+  const arrived = arrivalHour !== null && hour >= arrivalHour
 
   useEffect(() => {
-    if (!playing) return
+    if (playUntil === null) return
     const timer = window.setInterval(() => {
-      if (hour >= lastHour) setPlaying(false)
+      if (hour >= playUntil) setPlayUntil(null)
       else onHourChange(hour + 1)
     }, PLAY_STEP_MS)
     return () => window.clearInterval(timer)
-  }, [playing, hour, lastHour, onHourChange])
+  }, [playUntil, hour, onHourChange])
 
   const togglePlay = () => {
-    if (!playing && hour >= lastHour) onHourChange(0)
-    setPlaying(!playing)
+    if (playing) return setPlayUntil(null)
+    const start = hour >= lastHour ? 0 : hour
+    if (start !== hour) onHourChange(start)
+    setPlayUntil(arrivalStep !== null && start < arrivalStep ? arrivalStep : lastHour)
   }
 
+  const description = HEATMAP_LAYERS.find((item) => item.kind === layer)?.description
+
   return (
-    <div className="absolute right-3 bottom-8 left-3 rounded-lg bg-white/95 p-3 shadow-lg md:left-auto md:w-[440px]">
+    <div className="absolute right-3 bottom-8 left-3 z-10 rounded-lg bg-white/95 p-3 shadow-lg md:left-auto md:w-[440px]">
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs font-semibold text-slate-700">Weather along the corridor</p>
         <div role="radiogroup" aria-label="Heatmap layer" className="flex rounded-md border border-slate-200 p-0.5">
@@ -63,6 +75,19 @@ export function HeatmapControls({
           ))}
         </div>
       </div>
+
+      <ul className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-600" aria-label="Risk colours">
+        {RISK_LEVELS.map((level) => (
+          <li key={level} className="flex items-center gap-1">
+            <span className="inline-block h-1.5 w-3.5 rounded-full" style={{ backgroundColor: RISK_COLORS[level] }} />
+            {RISK_LABELS[level]}
+          </li>
+        ))}
+      </ul>
+      <p className="mt-1 text-[11px] leading-snug text-slate-500">
+        <strong className="font-medium text-slate-700">Route &amp; dots:</strong> weather when the truck gets there.{' '}
+        <strong className="font-medium text-slate-700">Shading:</strong> {description}
+      </p>
 
       {status === 'error' ? (
         <p className="mt-2 text-xs text-red-700">{errorMessage ?? 'Weather layer unavailable.'}</p>
@@ -95,19 +120,32 @@ export function HeatmapControls({
               value={hour}
               disabled={status !== 'ready'}
               onChange={(event) => {
-                setPlaying(false)
+                setPlayUntil(null)
                 onHourChange(Number(event.target.value))
               }}
               aria-label="Hours after departure"
-              aria-valuetext={`${hour} hours after departure`}
+              aria-valuetext={`${hour} hours after departure${arrived ? ', truck has arrived' : ''}`}
               className="w-full accent-sky-700"
             />
+            {arrivalStep !== null && (
+              // Timeline under the slider: driving until arrival, then parked.
+              <div aria-hidden="true" className="mx-1.5 mb-1 flex h-1 overflow-hidden rounded-full bg-slate-200">
+                <div className="bg-sky-600/60" style={{ width: `${(arrivalHour! / lastHour) * 100}%` }} />
+              </div>
+            )}
             <div className="flex justify-between text-[11px] text-slate-500 tabular-nums">
               <span>
                 <strong className="text-slate-800">+{hour}h</strong>
                 {hours && ` · ${formatTime(hours[hour])}`}
+                {arrived && <span className="font-medium text-slate-700"> · arrived</span>}
               </span>
-              <span>{status === 'loading' ? 'Loading forecast…' : `0–${lastHour}h after departure`}</span>
+              <span>
+                {status === 'loading'
+                  ? 'Loading forecast…'
+                  : arrivalStep !== null
+                    ? `Arrives at +${arrivalHour!.toFixed(1)}h`
+                    : `0–${lastHour}h after departure`}
+              </span>
             </div>
           </div>
         </div>

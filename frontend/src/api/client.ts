@@ -27,13 +27,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const body = await response.json().catch(() => null)
   if (!response.ok) {
     const error = body?.error
-    throw new ApiError(error?.message ?? `Request failed (${response.status}).`, error?.code ?? 'error', response.status)
+    throw new ApiError(
+      error?.message ?? `Request failed (${response.status}).`,
+      error?.code ?? 'error',
+      response.status,
+    )
   }
   return body as T
-}
-
-export function getJson<T>(path: string): Promise<T> {
-  return request<T>(path)
 }
 
 export async function suggestPlaces(query: string, signal?: AbortSignal): Promise<Place[]> {
