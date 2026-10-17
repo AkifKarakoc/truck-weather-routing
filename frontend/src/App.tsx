@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useCallback, useEffect, useState } from 'react'
 
-import { getHeatmap } from './api/client'
+import { ApiError, getHeatmap } from './api/client'
 import type { HeatmapLayerKind, Interval, TripPlan } from './api/types'
 import { HeatmapControls } from './components/HeatmapControls'
 import { RouteList } from './components/RouteList'
@@ -43,8 +43,17 @@ export default function App() {
     queryFn: () => getHeatmap(tripId!),
     enabled: Boolean(tripId),
     staleTime: Infinity,
-    retry: false,
+    // Open-Meteo's free limit is per minute: wait it out once, then give up.
+    retry: (failures, error) => failures < 1 && isRateLimited(error),
+    retryDelay: RATE_LIMIT_RETRY_MS,
   })
+  const heatmapStatus = heatmap.data
+    ? 'ready'
+    : heatmap.isError
+      ? 'error'
+      : heatmap.failureCount > 0
+        ? 'waiting'
+        : 'loading'
   const [heatmapLayer, setHeatmapLayer] = useState<HeatmapLayerKind>('risk')
   const [hourState, setHourState] = useState<{ tripId: string; hour: number } | null>(null)
   const hour = hourState && hourState.tripId === tripId ? hourState.hour : 0
@@ -54,10 +63,7 @@ export default function App() {
     // Phones: map on top, form and results scroll below. Desktop: sidebar + full-height map.
     <div className="flex min-h-full flex-col md:h-full md:flex-row">
       <aside className="flex w-full shrink-0 flex-col border-slate-200 bg-slate-50 md:w-[420px] md:overflow-y-auto md:border-r">
-        <header className="border-b border-slate-200 bg-white px-5 py-4">
-          <h1 className="text-lg font-semibold">Truck Weather Routing</h1>
-          <p className="text-xs text-slate-500">Compare truck routes by forecast weather at your ETA.</p>
-        </header>
+        <AppHeader className="hidden md:block" />
 
         <section className="border-b border-slate-200 bg-white px-5 py-4">
           <TripForm
@@ -100,6 +106,8 @@ export default function App() {
         </section>
       </aside>
 
+      {/* On phones the header sits above the map. */}
+      <AppHeader className="order-first md:hidden" />
       <main className="relative order-first h-[70svh] shrink-0 md:order-none md:h-full md:min-h-0 md:flex-1 md:shrink">
         <RouteMap
           plan={plan}
@@ -117,12 +125,27 @@ export default function App() {
             onHourChange={setHour}
             layer={heatmapLayer}
             onLayerChange={setHeatmapLayer}
-            status={heatmap.isError ? 'error' : heatmap.data ? 'ready' : 'loading'}
+            status={heatmapStatus}
             errorMessage={heatmap.error?.message}
           />
         )}
       </main>
     </div>
+  )
+}
+
+const RATE_LIMIT_RETRY_MS = 61_000
+
+function isRateLimited(error: Error): boolean {
+  return error instanceof ApiError && error.code === 'weather_rate_limited'
+}
+
+function AppHeader({ className }: { className: string }) {
+  return (
+    <header className={`border-b border-slate-200 bg-white px-5 py-4 ${className}`}>
+      <h1 className="text-lg font-semibold">Truck Weather Routing</h1>
+      <p className="text-xs text-slate-500">Compare truck routes by forecast weather at your ETA.</p>
+    </header>
   )
 }
 

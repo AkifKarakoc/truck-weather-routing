@@ -16,7 +16,8 @@ interface HeatmapControlsProps {
   onHourChange: (hour: number) => void
   layer: HeatmapLayerKind
   onLayerChange: (layer: HeatmapLayerKind) => void
-  status: 'loading' | 'error' | 'ready'
+  // waiting = rate limited by the weather service, retrying shortly.
+  status: 'loading' | 'waiting' | 'error' | 'ready'
   errorMessage?: string
 }
 
@@ -56,7 +57,7 @@ export function HeatmapControls({
   const description = HEATMAP_LAYERS.find((item) => item.kind === layer)?.description
 
   return (
-    <div className="absolute right-3 bottom-8 left-3 z-10 rounded-lg bg-white/95 p-3 shadow-lg md:left-auto md:w-[440px]">
+    <div className="absolute right-3 bottom-8 left-3 z-10 rounded-lg bg-white/95 p-3 shadow-lg md:left-auto md:w-[440px] md:max-w-[calc(100%-1.5rem)]">
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs font-semibold text-slate-700">Weather along the corridor</p>
         <div role="radiogroup" aria-label="Heatmap layer" className="flex rounded-md border border-slate-200 p-0.5">
@@ -85,7 +86,8 @@ export function HeatmapControls({
           </li>
         ))}
       </ul>
-      <p className="mt-1 text-[11px] leading-snug text-slate-500">
+      {/* Hidden on phones to leave more of the map visible. */}
+      <p className="mt-1 hidden text-[11px] leading-snug text-slate-500 sm:block">
         <strong className="font-medium text-slate-700">Route &amp; dots:</strong> weather when the truck gets there.{' '}
         <strong className="font-medium text-slate-700">Shading:</strong> {description}
       </p>
@@ -144,9 +146,11 @@ export function HeatmapControls({
               <span>
                 {status === 'loading'
                   ? 'Loading forecast…'
-                  : arrivalStep !== null
-                    ? `Arrives at +${arrivalHour!.toFixed(1)}h`
-                    : `0–${lastHour}h after departure`}
+                  : status === 'waiting'
+                    ? 'Weather service busy, retrying in a minute…'
+                    : arrivalStep !== null
+                      ? `Arrives at +${arrivalHour!.toFixed(1)}h`
+                      : `0–${lastHour}h after departure`}
               </span>
             </div>
           </div>

@@ -190,14 +190,18 @@ function EndpointMarker({ position, label }: { position: LngLat; label: string }
 
 function TruckMarker({ position, arrived }: { position: LngLat; arrived: boolean }) {
   return (
-    <Marker longitude={position[0]} latitude={position[1]} anchor="center" style={{ zIndex: 2 }}>
+    // A pin whose tip marks the position, so the A/B markers underneath stay visible.
+    <Marker longitude={position[0]} latitude={position[1]} anchor="bottom" offset={[0, -6]} style={{ zIndex: 2 }}>
       <div
         title={arrived ? 'Truck has arrived at this hour' : 'Truck position at the selected hour'}
-        className="flex size-8 items-center justify-center rounded-full border-2 border-white bg-sky-700 text-white shadow-lg"
+        className="flex flex-col items-center drop-shadow-md"
       >
-        <svg viewBox="0 0 24 24" className="size-4.5" fill="currentColor" aria-hidden="true">
-          <path d="M2 6a1 1 0 0 1 1-1h11a1 1 0 0 1 1 1v2h3.6a1 1 0 0 1 .8.4l2.4 3.2a1 1 0 0 1 .2.6V16a1 1 0 0 1-1 1h-1.2a2.5 2.5 0 0 1-4.6 0H9.8a2.5 2.5 0 0 1-4.6 0H3a1 1 0 0 1-1-1V6Zm13 4v3h4.8l-1.7-2.3-.5-.7H15ZM7.5 17.5a1 1 0 1 0 0-2 1 1 0 0 0 0 2Zm9 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" />
-        </svg>
+        <div className="flex size-7 items-center justify-center rounded-full border-2 border-white bg-sky-700 text-white">
+          <svg viewBox="0 0 24 24" className="size-4" fill="currentColor" aria-hidden="true">
+            <path d="M2 6a1 1 0 0 1 1-1h11a1 1 0 0 1 1 1v2h3.6a1 1 0 0 1 .8.4l2.4 3.2a1 1 0 0 1 .2.6V16a1 1 0 0 1-1 1h-1.2a2.5 2.5 0 0 1-4.6 0H9.8a2.5 2.5 0 0 1-4.6 0H3a1 1 0 0 1-1-1V6Zm13 4v3h4.8l-1.7-2.3-.5-.7H15ZM7.5 17.5a1 1 0 1 0 0-2 1 1 0 0 0 0 2Zm9 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" />
+          </svg>
+        </div>
+        <div className="-mt-0.5 h-0 w-0 border-x-[5px] border-t-[7px] border-x-transparent border-t-sky-700" />
       </div>
     </Marker>
   )
