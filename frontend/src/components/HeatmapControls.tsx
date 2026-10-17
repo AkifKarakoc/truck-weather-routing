@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react'
 
 import type { HeatmapLayerKind } from '../api/types'
 import { formatTime } from '../lib/format'
-import { HEATMAP_LAYERS } from '../lib/heatmap'
+import { HEATMAP_LAYERS, VALUE_SCALES } from '../lib/heatmap'
 import { RISK_COLORS, RISK_LABELS, RISK_LEVELS } from '../lib/risk'
+import { ValueScaleLegend } from './ValueScaleLegend'
 
 const PLAY_STEP_MS = 450
 
@@ -88,6 +89,7 @@ export function HeatmapControls({
         <strong className="font-medium text-slate-700">Route &amp; dots:</strong> weather when the truck gets there.{' '}
         <strong className="font-medium text-slate-700">Shading:</strong> {description}
       </p>
+      {layer !== 'risk' && <ValueScaleLegend scale={VALUE_SCALES[layer]} />}
 
       {status === 'error' ? (
         <p className="mt-2 text-xs text-red-700">{errorMessage ?? 'Weather layer unavailable.'}</p>

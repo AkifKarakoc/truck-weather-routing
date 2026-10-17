@@ -10,37 +10,93 @@ export const HEATMAP_LAYERS: { kind: HeatmapLayerKind; label: string; descriptio
     label: 'Risk',
     description: 'overall risk at the slider hour (worst of wind, rain, snow, with load rules).',
   },
-  {
-    kind: 'wind',
-    label: 'Wind',
-    description: 'sustained wind at the slider hour, mph: Moderate 25+, High 35+, Severe 45+, No Travel 55+.',
-  },
-  {
-    kind: 'rain',
-    label: 'Rain',
-    description:
-      'rain incl. showers at the slider hour, in/hr: Moderate 0.10+, High 0.25+, Severe 0.50+, No Travel >1.00.',
-  },
-  {
-    kind: 'snow',
-    label: 'Snow',
-    description: 'snowfall at the slider hour, in/hr: Moderate 0.5+, High 1.0+, Severe 2.0+, No Travel >3.0.',
-  },
+  { kind: 'wind', label: 'Wind', description: 'sustained wind at the slider hour.' },
+  { kind: 'rain', label: 'Rain', description: 'rain incl. showers at the slider hour.' },
+  { kind: 'snow', label: 'Snow', description: 'snowfall at the slider hour.' },
 ]
+
+export type ValueLayerKind = Exclude<HeatmapLayerKind, 'risk'>
+
+export interface ValueScale {
+  unit: string
+  // Right end of the legend bar; higher values use the last colour.
+  max: number
+  // [value, colour, opacity]: light and faint when calm, dark and solid when extreme.
+  stops: [number, string, number][]
+  // Risk thresholds marked on the legend (same rules as the backend).
+  thresholds: [number, string][]
+}
+
+/**
+ * Wind, rain and snow show the actual value on their own colour ramp, so the
+ * layers stay informative on calm days. The ramps avoid the risk colours,
+ * which keep their meaning for the route and the Risk layer.
+ */
+export const VALUE_SCALES: Record<ValueLayerKind, ValueScale> = {
+  wind: {
+    unit: 'mph',
+    max: 60,
+    stops: [
+      [0, '#eff6ff', 0.1],
+      [10, '#bfdbfe', 0.3],
+      [20, '#60a5fa', 0.45],
+      [30, '#2563eb', 0.55],
+      [45, '#1e40af', 0.65],
+      [60, '#172554', 0.7],
+    ],
+    thresholds: [
+      [25, 'Moderate'],
+      [35, 'High'],
+      [45, 'Severe'],
+      [55, 'No Travel'],
+    ],
+  },
+  rain: {
+    unit: 'in/hr',
+    max: 1.2,
+    stops: [
+      [0, '#f0fdfa', 0],
+      [0.01, '#99f6e4', 0.3],
+      [0.1, '#2dd4bf', 0.45],
+      [0.25, '#0d9488', 0.55],
+      [0.5, '#115e59', 0.65],
+      [1.2, '#042f2e', 0.7],
+    ],
+    thresholds: [
+      [0.1, 'Moderate'],
+      [0.25, 'High'],
+      [0.5, 'Severe'],
+      [1.0, 'No Travel'],
+    ],
+  },
+  snow: {
+    unit: 'in/hr',
+    max: 3.5,
+    stops: [
+      [0, '#f5f3ff', 0],
+      [0.05, '#ddd6fe', 0.3],
+      [0.5, '#a78bfa', 0.45],
+      [1.0, '#8b5cf6', 0.55],
+      [2.0, '#6d28d9', 0.65],
+      [3.5, '#3b0764', 0.7],
+    ],
+    thresholds: [
+      [0.5, 'Moderate'],
+      [1.0, 'High'],
+      [2.0, 'Severe'],
+      [3.0, 'No Travel'],
+    ],
+  },
+}
+
+/** CSS gradient matching a value scale, for the legend bar. */
+export function scaleGradient(scale: ValueScale): string {
+  const stops = scale.stops.map(([value, color]) => `${color} ${(value / scale.max) * 100}%`)
+  return `linear-gradient(to right, ${stops.join(', ')})`
+}
 
 // Per-hour property names: r3 = risk at departure + 3h, w3 = wind, p3 = rain, s3 = snow.
 const PREFIX: Record<HeatmapLayerKind, string> = { risk: 'r', wind: 'w', rain: 'p', snow: 's' }
-
-/**
- * Lower bounds of Moderate, High, Severe and No Travel per condition (same
- * rules as the backend). Rain/snow No Travel is strictly above 1.00 / 3.0;
- * values arrive rounded to 0.01, so the next step is 1.01 / 3.01.
- */
-const STEPS: Record<Exclude<HeatmapLayerKind, 'risk'>, number[]> = {
-  wind: [25, 35, 45, 55],
-  rain: [0.1, 0.25, 0.5, 1.01],
-  snow: [0.5, 1.0, 2.0, 3.01],
-}
 
 /** One point feature per grid cell carrying every hour's values as properties. */
 export function heatmapFeatures(heatmap: Heatmap): FeatureCollection<Point> {
@@ -62,7 +118,24 @@ export function heatmapFeatures(heatmap: Heatmap): FeatureCollection<Point> {
 // ~60 km at mid-US latitudes: 60,000 m / (78,271 m/px * cos 38°) at zoom 0 (512 px tiles).
 const RADIUS_PX_AT_ZOOM_0 = 0.97
 
-const COLOR_RAMP = [RISK_COLORS.low, RISK_COLORS.moderate, RISK_COLORS.high, RISK_COLORS.severe, RISK_COLORS.no_travel]
+const RISK_RAMP = [RISK_COLORS.low, RISK_COLORS.moderate, RISK_COLORS.high, RISK_COLORS.severe, RISK_COLORS.no_travel]
+
+const CIRCLE_SHAPE = {
+  'circle-blur': 1,
+  // Grid points are ~30 mi (48 km) apart. Radii are set in ground distance
+  // (~60 km, doubling per zoom level) so the soft circles overlap into a
+  // continuous field at every zoom.
+  'circle-radius': [
+    'interpolate',
+    ['exponential', 2],
+    ['zoom'],
+    0,
+    RADIUS_PX_AT_ZOOM_0,
+    22,
+    RADIUS_PX_AT_ZOOM_0 * 2 ** 22,
+  ] as ExpressionSpecification,
+  'circle-pitch-alignment': 'map',
+} satisfies CircleLayerSpecification['paint']
 
 /**
  * Paint for the selected layer and hour. Only these expressions change while
@@ -70,34 +143,36 @@ const COLOR_RAMP = [RISK_COLORS.low, RISK_COLORS.moderate, RISK_COLORS.high, RIS
  */
 export function heatmapPaint(kind: HeatmapLayerKind, hour: number): CircleLayerSpecification['paint'] {
   const value: ExpressionSpecification = ['get', `${PREFIX[kind]}${hour}`]
-  // Expressed as a risk level 0-4 so colour and opacity share one scale.
-  const level =
-    kind === 'risk'
-      ? value
-      : (['step', value, 0, ...STEPS[kind].flatMap((bound, i) => [bound, i + 1])] as ExpressionSpecification)
+  const colors = kind === 'risk' ? riskColors(value) : valueColors(value, VALUE_SCALES[kind])
+  return { ...colors, ...CIRCLE_SHAPE }
+}
 
+function riskColors(level: ExpressionSpecification): CircleLayerSpecification['paint'] {
   return {
     'circle-color': [
       'match',
       level,
-      ...COLOR_RAMP.flatMap((color, i) => [i, color]),
+      ...RISK_RAMP.flatMap((color, i) => [i, color]),
       RISK_COLORS.low,
     ] as ExpressionSpecification,
     // Calm areas stay faint so hazards stand out.
     'circle-opacity': ['case', ['==', level, 0], 0.22, 0.6],
-    'circle-blur': 1,
-    // Grid points are ~30 mi (48 km) apart. Radii are set in ground distance
-    // (~60 km, doubling per zoom level) so the soft circles overlap into a
-    // continuous field at every zoom.
-    'circle-radius': [
+  }
+}
+
+function valueColors(value: ExpressionSpecification, scale: ValueScale): CircleLayerSpecification['paint'] {
+  return {
+    'circle-color': [
       'interpolate',
-      ['exponential', 2],
-      ['zoom'],
-      0,
-      RADIUS_PX_AT_ZOOM_0,
-      22,
-      RADIUS_PX_AT_ZOOM_0 * 2 ** 22,
-    ],
-    'circle-pitch-alignment': 'map',
+      ['linear'],
+      value,
+      ...scale.stops.flatMap(([stop, color]) => [stop, color]),
+    ] as ExpressionSpecification,
+    'circle-opacity': [
+      'interpolate',
+      ['linear'],
+      value,
+      ...scale.stops.flatMap(([stop, , opacity]) => [stop, opacity]),
+    ] as ExpressionSpecification,
   }
 }
