@@ -20,3 +20,20 @@ body {
     Roboto,
     sans-serif;
 }
+
+/* Day picker themed to match the app (sky accent, compact cells). */
+.departure-calendar {
+  --rdp-accent-color: #0369a1;
+  --rdp-accent-background-color: #e0f2fe;
+  --rdp-day-height: 36px;
+  --rdp-day-width: 36px;
+  --rdp-day_button-height: 34px;
+  --rdp-day_button-width: 34px;
+  --rdp-nav-height: 2.25rem;
+  font-size: 0.875rem;
+}
+
+.departure-calendar .rdp-selected .rdp-day_button {
+  background-color: var(--rdp-accent-color);
+  color: #fff;
+}

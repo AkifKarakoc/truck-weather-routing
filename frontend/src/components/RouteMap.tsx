@@ -64,8 +64,14 @@ export function RouteMap({ plan, selectedRouteId, onSelectRoute, heatmap, heatma
     return JSON.stringify({ trip: plan.trip_id, bounds })
   }, [plan])
   useEffect(() => {
-    if (loaded && frameKey)
-      mapRef.current?.fitBounds(JSON.parse(frameKey).bounds, { padding: FIT_PADDING, duration: 900 })
+    const map = mapRef.current
+    if (!loaded || !map) return
+    if (frameKey) {
+      map.fitBounds(JSON.parse(frameKey).bounds, { padding: FIT_PADDING, duration: 900 })
+    } else {
+      // No trip (e.g. after Reset): back to the whole country.
+      map.flyTo({ center: [US_INITIAL_VIEW.longitude, US_INITIAL_VIEW.latitude], zoom: US_INITIAL_VIEW.zoom })
+    }
   }, [loaded, frameKey])
 
   const handleClick = (event: MapLayerMouseEvent) => {

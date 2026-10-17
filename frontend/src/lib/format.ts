@@ -55,12 +55,6 @@ export function formatTime(iso: string): string {
   return timeFormat.format(new Date(iso))
 }
 
-/** Value for an <input type="datetime-local"> in the viewer's time zone. */
-export function toLocalInputValue(date: Date): string {
-  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
-  return local.toISOString().slice(0, 16)
-}
-
 // WMO weather interpretation codes used by Open-Meteo.
 const WEATHER_CODES: [number[], string][] = [
   [[0], 'Clear'],

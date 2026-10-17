@@ -12,7 +12,9 @@ import { isDesktopLayout } from './lib/media'
 import { useTripPlanner } from './lib/useTripPlanner'
 
 export default function App() {
-  const { plan, pendingInterval, planTrip, changeInterval, isPlanning, isUpdating, error } = useTripPlanner()
+  const { plan, pendingInterval, planTrip, changeInterval, reset, isPlanning, isUpdating, error } = useTripPlanner()
+  // Bumped by Reset to remount the form with its initial values.
+  const [formKey, setFormKey] = useState(0)
   // One checkpoint-interval control: it applies to the trip on screen and to the next search.
   const [draftInterval, setDraftInterval] = useState<Interval>(25)
   const interval = pendingInterval ?? plan?.interval_mi ?? draftInterval
@@ -59,7 +61,14 @@ export default function App() {
 
         <section className="border-b border-slate-200 bg-white px-5 py-4">
           <TripForm
+            key={formKey}
             onSubmit={planTrip}
+            onReset={() => {
+              reset()
+              setDraftInterval(25)
+              setHeatmapLayer('risk')
+              setFormKey((key) => key + 1)
+            }}
             submitting={isPlanning}
             interval={interval}
             onIntervalChange={selectInterval}
