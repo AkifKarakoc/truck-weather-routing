@@ -3,7 +3,7 @@
 A React + Django web app that helps a truck driver pick the safest route. It compares up to three truck routes using the forecast weather each stretch of road will have **when the truck gets there**, applies the load-dependent risk rules, and recommends a route. A heatmap shows the forecast along the trip corridor for the next 48 hours.
 
 - **Live app:** https://truck-weather-routing-32v6.onrender.com
-- **Walkthrough video:** _Loom link to be added_
+- **Walkthrough video (Loom):** https://www.loom.com/share/9fbe6c77099d45679e174d89cdf50fae
 
 ---
 
