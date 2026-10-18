@@ -1,0 +1,14 @@
+# Render Blueprint: one free web service built from the Dockerfile.
+services:
+  - type: web
+    name: truck-weather-routing
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health/
+    autoDeploy: true
+    envVars:
+      - key: HERE_API_KEY
+        sync: false # entered in the Render dashboard, never committed
+      - key: DJANGO_SECRET_KEY
+        generateValue: true

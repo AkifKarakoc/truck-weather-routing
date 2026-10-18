@@ -1,10 +1,11 @@
 from django.conf import settings
 from django.core.cache import cache
 from rest_framework import status
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, throttle_classes
 from rest_framework.response import Response
 
 from . import here_client, trips
+from .throttles import SuggestThrottle, TripCreateThrottle, TripReadThrottle
 from .serializers import (
     IntervalQuerySerializer,
     SuggestQuerySerializer,
@@ -23,6 +24,7 @@ def health(request):
 
 
 @api_view(["GET"])
+@throttle_classes([SuggestThrottle])
 def suggest_places(request):
     query = SuggestQuerySerializer(data=request.query_params)
     query.is_valid(raise_exception=True)
@@ -39,6 +41,7 @@ def suggest_places(request):
 
 
 @api_view(["POST"])
+@throttle_classes([TripCreateThrottle])
 def create_trip(request):
     form = TripRequestSerializer(data=request.data)
     form.is_valid(raise_exception=True)
@@ -55,6 +58,7 @@ def create_trip(request):
 
 
 @api_view(["GET"])
+@throttle_classes([TripReadThrottle])
 def trip_detail(request, trip_id: str):
     """Re-assess a cached trip, e.g. with a different checkpoint interval."""
     query = IntervalQuerySerializer(data=request.query_params)
@@ -65,6 +69,7 @@ def trip_detail(request, trip_id: str):
 
 
 @api_view(["GET"])
+@throttle_classes([TripReadThrottle])
 def trip_heatmap(request, trip_id: str):
     """Corridor weather for the 0-48 hour slider; loaded after the routes."""
     return Response(serialize_heatmap(trips.build_heatmap(trips.get_trip(trip_id))))

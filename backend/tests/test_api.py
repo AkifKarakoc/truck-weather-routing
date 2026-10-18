@@ -250,3 +250,16 @@ def test_weather_rate_limit_has_its_own_error_code(client, monkeypatch):
 
     assert response.status_code == 503
     assert response.json()["error"]["code"] == "weather_rate_limited"
+
+
+def test_trip_creation_is_rate_limited_per_client(client, monkeypatch):
+    from routing.throttles import TripCreateThrottle
+
+    monkeypatch.setattr(TripCreateThrottle, "THROTTLE_RATES", {"trip_create": "2/hour"})
+
+    statuses = [client.post("/api/trips/", trip_request(), format="json").status_code for _ in range(3)]
+
+    assert statuses == [201, 201, 429]
+    error = client.post("/api/trips/", trip_request(), format="json").json()["error"]
+    assert error["code"] == "throttled"
+    assert "try again in about" in error["message"]

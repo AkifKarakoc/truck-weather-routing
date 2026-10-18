@@ -1,7 +1,7 @@
 """One JSON error shape for every failure: {"error": {"code", "message", "fields"?}}."""
 
 from rest_framework import status
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import Throttled, ValidationError
 from rest_framework.response import Response
 from rest_framework.views import exception_handler
 
@@ -27,6 +27,10 @@ def api_exception_handler(exc, context):
     response = exception_handler(exc, context)
     if response is None:
         return None
+    if isinstance(exc, Throttled):
+        minutes = max(1, round((exc.wait or 60) / 60))
+        message = f"Too many requests from your network. Please try again in about {minutes} minute(s)."
+        return _error(response.status_code, "throttled", message)
     if isinstance(exc, ValidationError):
         return _error(response.status_code, "invalid_input", _first_message(response.data), fields=response.data)
     return _error(response.status_code, getattr(exc, "default_code", "error"), str(exc))
