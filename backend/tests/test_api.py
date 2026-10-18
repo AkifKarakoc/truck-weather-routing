@@ -87,7 +87,7 @@ def test_create_trip_recommends_the_calm_route(client, fake_services):
     windy = body["routes"][0]
     assert windy["miles_by_level"]["no_travel"] == pytest.approx(windy["distance_mi"], abs=0.2)
     assert windy["checkpoints"][1]["risk"]["load_rule"].startswith("Wind 50 mph")
-    assert body["warnings"] == ["Only 2 reasonable route(s) were found for this trip."]
+    assert body["warnings"] == ["Only 2 reasonable routes were found for this trip."]
 
 
 def test_route_and_checkpoint_shape(client):

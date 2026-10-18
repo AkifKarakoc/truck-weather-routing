@@ -70,7 +70,8 @@ def serialize_plan(plan: TripPlan) -> dict:
 
     warnings = []
     if len(plan.routes) < 3:
-        warnings.append(f"Only {len(plan.routes)} reasonable route(s) were found for this trip.")
+        found = "1 reasonable route was" if len(plan.routes) == 1 else f"{len(plan.routes)} reasonable routes were"
+        warnings.append(f"Only {found} found for this trip.")
 
     return {
         "trip_id": trip.id,

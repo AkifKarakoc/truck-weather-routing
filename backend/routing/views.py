@@ -1,3 +1,5 @@
+import hashlib
+
 from django.conf import settings
 from django.core.cache import cache
 from rest_framework import status
@@ -31,7 +33,7 @@ def suggest_places(request):
     text = query.validated_data["q"]
 
     # Typing the same prefix again (or another user doing so) costs no HERE call.
-    cache_key = f"suggest:{text.lower()}"
+    cache_key = f"suggest:{hashlib.sha1(text.lower().encode()).hexdigest()}"
     results = cache.get(cache_key)
     if results is None:
         places = here_client.suggest_places(text)

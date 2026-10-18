@@ -12,6 +12,12 @@ export default defineConfig({
   build: {
     // MapLibre is a single ~1 MB chunk (~290 kB gzipped) on its own; that is expected.
     chunkSizeWarningLimit: 1200,
+    rolldownOptions: {
+      output: {
+        // Keep MapLibre in its own long-cached file, separate from app code that changes often.
+        advancedChunks: { groups: [{ name: 'maplibre-gl', test: /node_modules[\\/]maplibre-gl/ }] },
+      },
+    },
   },
   server: {
     // In development the Django API runs separately; proxy it so the

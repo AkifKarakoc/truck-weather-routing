@@ -26,4 +26,5 @@ USER app
 
 # One process keeps the in-memory trip/weather cache shared; threads handle
 # concurrent requests while others wait on HERE or Open-Meteo.
-CMD gunicorn config.wsgi --bind 0.0.0.0:${PORT:-8000} --workers 1 --threads 8 --timeout 60 --access-logfile -
+# exec makes gunicorn PID 1 so it receives shutdown signals; sh expands $PORT.
+CMD ["sh", "-c", "exec gunicorn config.wsgi --bind 0.0.0.0:${PORT:-8000} --workers 1 --threads 8 --timeout 60 --access-logfile -"]
